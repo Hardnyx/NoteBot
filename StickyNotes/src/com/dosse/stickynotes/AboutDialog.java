@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2017 Federico Dossena
+ * Modifications Copyright (C) 2026 Alonso Roman
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,6 +28,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.net.URI;
+import java.text.MessageFormat;
 import java.util.ResourceBundle;
 import javax.imageio.ImageIO;
 import javax.swing.ImageIcon;
@@ -39,9 +41,12 @@ import javax.swing.SwingConstants;
 
 /**
  *
- * @author Federico
+ * @author Federico Dossena
+ * @author Alonso Roman
  */
 public class AboutDialog extends JDialog {
+
+    private static final long serialVersionUID = 1L;
 
     private static final int DEFAULT_WIDTH = (int) (400 * Main.SCALE),
             DEFAULT_HEIGHT = (int) (380 * Main.SCALE);
@@ -79,9 +84,9 @@ public class AboutDialog extends JDialog {
         Font smallFont = Main.BASE_FONT.deriveFont(11f * Main.SCALE);
         JLabel ver = new JLabel();
         ver.setFont(smallFont);
-        ver.setText(locBundle.getString("ABOUT_VERSION"));
+        ver.setText(MessageFormat.format(locBundle.getString("ABOUT_VERSION"), Main.VERSION));
         ver.setBounds(0, (int) (112f * Main.SCALE), main.getWidth(), (int) (24f * Main.SCALE));
-        setIconImage((Image) ver.getIcon());
+        setIconImage(Note.loadImage("/com/dosse/stickynotes/icon.png"));
         main.add(ver);
         final JLabel url = new JLabel();
         url.setFont(smallFont);
@@ -107,7 +112,7 @@ public class AboutDialog extends JDialog {
         JButton ok = new JButton();
         ok.setText(locBundle.getString("ABOUT_CLOSE"));
         ok.setFont(Main.BUTTON_FONT.deriveFont(11f * Main.SCALE));
-        ok.setBounds((int) (main.getWidth() - (76f * Main.SCALE) - 4), (int) (main.getHeight() - (26 * Main.SCALE) - 24), (int) (76f * Main.SCALE), (int) (26f * Main.SCALE)); //todo: improve
+        ok.setBounds((int) (main.getWidth() - (76f * Main.SCALE) - 4), (int) (main.getHeight() - (26 * Main.SCALE) - 24), (int) (76f * Main.SCALE), (int) (26f * Main.SCALE));
         ok.setBackground(new Color(230, 230, 230));
         ok.setBorderPainted(false);
         ok.setFocusPainted(false);

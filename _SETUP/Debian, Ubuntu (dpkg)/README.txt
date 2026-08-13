@@ -1,4 +1,9 @@
-To build notebot.deb, make a directory and extract build.tar into it, then run:
-sh build_deb.sh
+The legacy Debian package was removed because it downloaded the obsolete Java 7 build over HTTP.
 
-(only tested on debian 8)
+Build the current JAR from the repository root with Maven:
+
+    mvn clean package
+
+It can then be run on a desktop system with:
+
+    java -jar target/NoteBot-1.7.0.jar

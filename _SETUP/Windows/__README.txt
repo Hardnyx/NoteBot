@@ -1,10 +1,11 @@
-To build the installer, you'll need Inno Setup (http://www.jrsoftware.org/isinfo.php).
+Windows build requirements:
 
-Steps to build installer:
--Compile StickyNotes
--Inside the project's directory, you'll find a folder named dist: copy StickyNotes.jar into setupFiles, overwrite existing files
--Extract a Java JRE into the jre folder
--Create the launcher using launch4j (http://launch4j.sourceforge.net/) and the project in the launch4j folder, then copy the .exe file into setupFiles
--At this point, setupFiles should contain StickyNotes.exe, StickyNotes.jar, and a jre folder with a java runtime into it (bin, lib, ...)
--Compile setup.iss with Inno Setup Compiler
--OPTIONAL: sign the installer exe file using your pkf certificate
+- JDK 21 or newer, with jpackage available
+- Maven 3.9 or newer
+- Inno Setup 6 for the installer
+
+Run build.ps1 from PowerShell. It compiles the project, creates a portable
+application with its own Java runtime, and then builds the installer when
+Inno Setup is available.
+
+Output files are written to the dist folder in the repository root.

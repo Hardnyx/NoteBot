@@ -31,6 +31,8 @@ import javax.swing.JPanel;
  */
 public abstract class CustomColorSelector extends JPanel {
 
+    private static final long serialVersionUID = 1L;
+
     private static final int DEFAULT_WIDTH = (int) (160 * Main.SCALE),
             DEFAULT_HEIGHT = (int) (60 * Main.SCALE),
             GRAYSCALE_HEIGHT = (int) (8 * Main.SCALE);

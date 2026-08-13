@@ -33,6 +33,8 @@ import javax.swing.border.LineBorder;
  */
 public abstract class ColorSelector extends JPanel {
 
+    private static final long serialVersionUID = 1L;
+
     private static final int BUTTON_SIZE = (int) (20 * Main.SCALE);
     private static final int BUTTONS_PER_ROW = 8;
     private static final Color SELECTED_COLOR=new Color(170, 170, 170);

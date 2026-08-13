@@ -1,42 +1,57 @@
+#define AppVersion GetEnv("NOTEBOT_VERSION")
+#define SourceDir GetEnv("NOTEBOT_SOURCE_DIR")
+#define PackageOutputDir GetEnv("NOTEBOT_OUTPUT_DIR")
+
+#if AppVersion == ""
+  #define AppVersion "1.7.0"
+#endif
+
 [Setup]
 AppId={{3E658137-CE80-49E3-8084-FD0B0158CA31}
-AppName="NoteBot"
-AppVersion="1.6"
-AppPublisher="Federico Dossena"
-AppPublisherURL="http://notebot.fdossena.com/"
-AppSupportURL="http://notebot.fdossena.com/"
-AppUpdatesURL="http://notebot.fdossena.com/"
-DefaultDirName="{pf}\NoteBot"
-DefaultGroupName="NoteBot"
+AppName=NoteBot
+AppVersion={#AppVersion}
+AppPublisher=Alonso Roman
+DefaultDirName={autopf}\NoteBot
+DefaultGroupName=NoteBot
 DisableProgramGroupPage=yes
+PrivilegesRequired=admin
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
 LicenseFile=gpl-3.0.txt
-OutputDir=.
-OutputBaseFilename=notebot-setup
-Compression=lzma2/ultra64
-LZMAAlgorithm=1
-LZMAMatchFinder=BT
+OutputDir={#PackageOutputDir}
+OutputBaseFilename=NoteBot-Setup-{#AppVersion}
+Compression=lzma2/max
 SolidCompression=yes
-LZMANumBlockThreads=1
-LZMANumFastBytes=273
-LZMADictionarySize=1048576
-LZMAUseSeparateProcess=yes
-InternalCompressLevel=ultra64
-SetupIconFile="icon.ico"
-UninstallDisplayIcon="icon.ico"
+SetupIconFile=icon.ico
+UninstallDisplayIcon={app}\NoteBot.exe
+VersionInfoCompany=Alonso Roman
+VersionInfoCopyright=Original copyright 2016-2020 Federico Dossena; modifications copyright 2026 Alonso Roman
+VersionInfoDescription=NoteBot installer
+WizardStyle=modern
+CloseApplications=yes
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "italian"; MessagesFile: "compiler:Languages\Italian.isl"
+Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
+
+[Tasks]
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+
+[InstallDelete]
+Type: files; Name: "{app}\StickyNotes.exe"
+Type: files; Name: "{app}\StickyNotes.jar"
+Type: filesandordirs; Name: "{app}\jre"
 
 [Files]
-Source: "setupFiles\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs sortfilesbyextension;
+Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\NoteBot"; Filename: "{app}\StickyNotes.exe"
+Name: "{autoprograms}\NoteBot"; Filename: "{app}\NoteBot.exe"
+Name: "{autodesktop}\NoteBot"; Filename: "{app}\NoteBot.exe"; Tasks: desktopicon
 
 [Run]
-Filename:"{app}\StickyNotes.exe"; Flags:runasoriginaluser nowait;
+Filename: "{app}\NoteBot.exe"; Description: "{cm:LaunchProgram,NoteBot}"; Flags: nowait postinstall skipifsilent
 
 [Registry]
-Root: HKLM; Subkey: "SOFTWARE\Microsoft\Windows\CurrentVersion\Run"; ValueName: "NoteBot"; ValueType: string; ValueData: """{app}\StickyNotes.exe"" -autostartup"; Flags: uninsdeletevalue 
-Root: HKLM32; Subkey: "SOFTWARE\Microsoft\Windows\CurrentVersion\Run"; ValueName: "NoteBot"; ValueType: string; ValueData: """{app}\StickyNotes.exe"" -autostartup"; Flags: uninsdeletevalue 
+Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueName: "NoteBot"; ValueType: string; ValueData: """{app}\NoteBot.exe"" -autostartup"; Flags: uninsdeletevalue

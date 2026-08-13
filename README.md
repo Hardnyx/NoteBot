@@ -1,59 +1,65 @@
 # NoteBot
-NoteBot is a clone of Microsoft Sticky Notes, without useless functionalities.
 
-## Download
-[Installer for Windows](http://downloads.fdossena.com/geth.php?r=stickynotes-win)
+NoteBot is a lightweight desktop sticky-notes application. Notes are stored locally, there is no account, synchronization, telemetry or automatic updater.
 
-[Deb Package for Ubuntu, Debian, ...](http://downloads.fdossena.com/geth.php?r=stickynotes-deb)
+This fork keeps the original interface and storage format while updating the parts that no longer worked reliably on current versions of Windows.
 
-[Binaries for other platforms](http://downloads.fdossena.com/geth.php?r=stickynotes-bin) (Requires Java)
+## Changes in version 1.7
 
-## Website
-[NoteBot](http://notebot.fdossena.com/)
+- Uses a current Java runtime instead of the bundled 32-bit Java 7 release.
+- Keeps the single-instance lock open for the full lifetime of the application.
+- Reports startup and storage errors instead of closing silently.
+- Restores notes to a visible monitor when the screen layout changes.
+- Saves through a temporary file and keeps two backup generations.
+- Preserves unreadable data files in a dated recovery folder.
+- Builds a self-contained Windows application with `jpackage`.
 
-## Features
-* Stick notes on your desktop
-* Can move, resize and zoom
-* Custom colors
-* Auto startup
-* Support for high DPI screens and touch devices
+Existing notes remain in the same location and use the same serialized format:
 
-## Lack of features
-Sticky Notes became trash with the August 2016 update of Windows 10, which turned it into a "modern" app, and added useless and suspicious features like synchronization and telemetry. Therefore...
+```text
+%LOCALAPPDATA%\NoteBot\sticky.dat
+```
 
-* Not a "modern" app: you can obliterate all Metro apps from your PC
-* No taskbar icon: notes actually stick to the desktop
-* No synchronization
-* No telemetry
-* Not even an auto updater
-* No botnet: it's open source, you can trust this application
-* And most importantly: no ugly Segoe Script font
+## Build from source
 
-## Compatibility
-* Windows XP or newer
-* Any platform supported by Java SE 7 or newer
- 
+Requirements:
+
+- JDK 17 or newer
+- Maven 3.9 or newer
+
+Build and run the JAR:
+
+```text
+mvn clean package
+java -jar target/NoteBot-1.7.0.jar
+```
+
+To create the Windows portable package and installer, use a JDK that includes `jpackage` and run:
+
+```powershell
+.\_SETUP\Windows\build.ps1
+```
+
+Inno Setup 6 is required for the installer. If it is not installed, the script still creates the portable package. The GitHub Actions workflow builds both automatically on Windows.
+
+The generated files are not digitally signed. Avoiding Windows reputation warnings on public releases requires a code-signing certificate; this cannot be solved only by changing the source code.
+
 ## Usage
-Import the projects into Netbeans.
 
-_SETUP contains all the files used to build the Windows installer and the .deb package.
-To build the Windows installer, you'll need [Inno Setup](http://www.jrsoftware.org/isinfo.php) and [launch4j](http://launch4j.sourceforge.net/).
+- Drag the upper part of a note to move it.
+- Drag an edge or corner to resize it.
+- Use `Ctrl+N` to create a note and `Ctrl+D` to delete one.
+- Use `Ctrl` with the mouse wheel to change the text size.
+- Right-click the text for editing commands.
+- Right-click the upper part of a note to change its color or open the About window.
 
-## Screenshots
-![Screenshot](http://fdossena.com/stickynotes/screen1_16.png)
+## Credits and license
 
-## License
-Copyright (C) 2016-2019 Federico Dossena
+NoteBot was created by Federico Dossena and originally published at [adolfintel/NoteBot](https://github.com/adolfintel/NoteBot).
 
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+Version 1.7 is maintained by Alonso Roman. The original copyright notices remain in place and modified files identify the later contribution separately.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+Copyright (C) 2016-2020 Federico Dossena  
+Modifications Copyright (C) 2026 Alonso Roman
 
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <http://www.gnu.org/licenses/>.
+NoteBot is distributed under the GNU General Public License, version 3 or any later version. See [LICENSE](LICENSE).

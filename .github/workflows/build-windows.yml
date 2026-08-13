@@ -1,0 +1,50 @@
+name: Build Windows packages
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+      - main
+    tags:
+      - "v*"
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Compile
+        run: mvn --batch-mode clean package
+
+      - name: Install Inno Setup
+        shell: powershell
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+              choco install innosetup --yes --no-progress
+          }
+
+      - name: Package Windows application
+        shell: powershell
+        run: .\_SETUP\Windows\build.ps1 -SkipCompile
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: NoteBot-Windows
+          path: dist/*
+          if-no-files-found: error

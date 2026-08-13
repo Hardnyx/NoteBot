@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2016 Federico Dossena
+ * Modifications Copyright (C) 2026 Alonso Roman
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,7 +20,6 @@ package com.dosse.stickynotes;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Image;
-import java.awt.MouseInfo;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.Toolkit;
@@ -60,9 +60,12 @@ import javax.swing.undo.UndoManager;
 
 /**
  *
- * @author Federico
+ * @author Federico Dossena
+ * @author Alonso Roman
  */
 public class Note extends JDialog {
+
+    private static final long serialVersionUID = 1L;
 
     private static final ResourceBundle locBundle = ResourceBundle.getBundle("com/dosse/stickynotes/locale/locale");
 
@@ -198,7 +201,7 @@ public class Note extends JDialog {
     public static final Image loadImage(String pathInClasspath) {
         try {
             return ImageIO.read(Note.class.getResource(pathInClasspath));
-        } catch (IOException ex) {
+        } catch (IOException | RuntimeException ex) {
             BufferedImage i = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
             i.setRGB(0, 0, 0);
             return i;
@@ -301,7 +304,7 @@ public class Note extends JDialog {
         cr.setSnapSize(new Dimension(1, 1)); //no snap
         cr.setMinimumSize(new Dimension((int) (160 * Main.SCALE), (int) (90 * Main.SCALE))); //min size is 160x90 @80dpi
         setPreferredSize(new Dimension((int) (190 * Main.SCALE), (int) (170 * Main.SCALE))); //default size is 190x170 @80dpi
-        setLocation(MouseInfo.getPointerInfo().getLocation()); //new note is placed at current mouse coordinates
+        setLocation(ScreenBounds.pointerLocation(getPreferredSize(), (int) (60 * Main.SCALE)));
         setResizable(false); //disallow resize by OS, such as maximize. Notes are still resizeable by the user (provided by ComponentResizer)
 
         //new note button
@@ -352,7 +355,7 @@ public class Note extends JDialog {
         text.addMouseWheelListener(new MouseWheelListener() {
             @Override
             public void mouseWheelMoved(MouseWheelEvent e) {
-                if (e.isControlDown() || e.isMetaDown()) { //scroll wheel with ctrl pressed (isMetaDown is for apple faggots)
+                if (e.isControlDown() || e.isMetaDown()) {
                     if (e.getWheelRotation() < 0) {
                         setTextScale(textScale + 0.1f);
                     } else if (e.getWheelRotation() > 0) {
@@ -553,7 +556,7 @@ public class Note extends JDialog {
         getContentPane().setLayout(layout);
         layout.setHorizontalGroup(layout.createParallelGroup(GroupLayout.Alignment.LEADING).addComponent(wrapper1, GroupLayout.DEFAULT_SIZE, GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE));
         layout.setVerticalGroup(layout.createParallelGroup(GroupLayout.Alignment.LEADING).addComponent(wrapper1, GroupLayout.DEFAULT_SIZE, GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE));
-        pack(); //fuck my shit up fam
+        pack();
 
         setColorScheme(DEFAULT_SCHEME); //set default color scheme (yellow)
 
@@ -591,19 +594,13 @@ public class Note extends JDialog {
      */
     @Override
     public void setBounds(int x, int y, int width, int height) {
-        if (preferredLocation == null) { //for some odd fucking reason, this can happen on some versions of java
-            preferredLocation = new Point(0, 0);
-        }
-        preferredLocation.x = x;
-        preferredLocation.y = y;
-        Dimension s = Main.getExtendedScreenResolution();
-        if (x + 60 * Main.SCALE > s.width) {
-            x = (int) (s.width - 60 * Main.SCALE);
-        }
-        if (y + 60 * Main.SCALE > s.height) {
-            y = (int) (s.height - 60 * Main.SCALE);
-        }
-        super.setBounds(x, y, width, height);
+        Point visibleLocation = ScreenBounds.keepVisible(
+                new Point(x, y),
+                new Dimension(width, height),
+                (int) (60 * Main.SCALE)
+        );
+        preferredLocation = visibleLocation;
+        super.setBounds(visibleLocation.x, visibleLocation.y, width, height);
     }
 
     /**
@@ -641,7 +638,21 @@ public class Note extends JDialog {
      * @return location
      */
     public Point getPreferredLocation() {
-        return preferredLocation;
+        return new Point(preferredLocation);
+    }
+
+    /**
+     * Moves the note back to a visible screen after the monitor layout changes.
+     */
+    public void ensureVisible() {
+        Point visibleLocation = ScreenBounds.keepVisible(
+                preferredLocation,
+                getSize(),
+                (int) (60 * Main.SCALE)
+        );
+        if (!visibleLocation.equals(preferredLocation)) {
+            setLocation(visibleLocation);
+        }
     }
 
     /**

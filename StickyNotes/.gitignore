@@ -1,7 +1,10 @@
 *.dat
 *.dat.bak
 *.dat.bak.2
+sticky.dat.tmp
 lock
+logs
+recovery
 build
 dist
 test
