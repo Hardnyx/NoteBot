@@ -6,7 +6,7 @@
 
     <groupId>com.dosse</groupId>
     <artifactId>NoteBot</artifactId>
-    <version>1.7.0</version>
+    <version>1.7.1</version>
     <name>NoteBot</name>
     <description>A lightweight desktop sticky-notes application</description>
     <url>https://github.com/adolfintel/NoteBot</url>

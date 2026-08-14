@@ -1,5 +1,6 @@
 /*
 	ADAPTED FROM https://tips4java.wordpress.com/2009/09/13/resizing-components/
+	Modifications Copyright (C) 2026 Alonso Roman
 */
 package com.dosse.stickynotes;
 import java.awt.*;
@@ -18,17 +19,16 @@ public class ComponentResizer extends MouseAdapter
 	private final static Dimension MAXIMUM_SIZE =
 		new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE);
 
-	private static Map<Integer, Integer> cursors = new HashMap<Integer, Integer>();
-	{
-		cursors.put(1, Cursor.N_RESIZE_CURSOR);
-		cursors.put(2, Cursor.W_RESIZE_CURSOR);
-		cursors.put(4, Cursor.S_RESIZE_CURSOR);
-		cursors.put(8, Cursor.E_RESIZE_CURSOR);
-		cursors.put(3, Cursor.NW_RESIZE_CURSOR);
-		cursors.put(9, Cursor.NE_RESIZE_CURSOR);
-		cursors.put(6, Cursor.SW_RESIZE_CURSOR);
-		cursors.put(12, Cursor.SE_RESIZE_CURSOR);
-	}
+	private static final Map<Integer, Integer> CURSORS = Map.of(
+		1, Cursor.N_RESIZE_CURSOR,
+		2, Cursor.W_RESIZE_CURSOR,
+		4, Cursor.S_RESIZE_CURSOR,
+		8, Cursor.E_RESIZE_CURSOR,
+		3, Cursor.NW_RESIZE_CURSOR,
+		9, Cursor.NE_RESIZE_CURSOR,
+		6, Cursor.SW_RESIZE_CURSOR,
+		12, Cursor.SE_RESIZE_CURSOR
+	);
 
 	private Insets dragInsets;
 	private Dimension snapSize;
@@ -248,16 +248,14 @@ public class ComponentResizer extends MouseAdapter
 		direction = 0;
 
 		if (location.x < dragInsets.left)
-			direction += WEST;
-
-		if (location.x > source.getWidth() - dragInsets.right - 1)
-			direction += EAST;
+			direction |= WEST;
+		else if (location.x > source.getWidth() - dragInsets.right - 1)
+			direction |= EAST;
 
 		if (location.y < dragInsets.top)
-			direction += NORTH;
-
-		if (location.y > source.getHeight() - dragInsets.bottom - 1)
-			direction += SOUTH;
+			direction |= NORTH;
+		else if (location.y > source.getHeight() - dragInsets.bottom - 1)
+			direction |= SOUTH;
 
 		//  Mouse is no longer over a resizable border
 
@@ -267,7 +265,7 @@ public class ComponentResizer extends MouseAdapter
 		}
 		else  // use the appropriate resizable cursor
 		{
-			int cursorType = cursors.get( direction );
+			int cursorType = CURSORS.getOrDefault(direction, Cursor.DEFAULT_CURSOR);
 			Cursor cursor = Cursor.getPredefinedCursor( cursorType );
 			source.setCursor( cursor );
 		}

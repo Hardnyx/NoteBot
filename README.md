@@ -4,10 +4,11 @@ NoteBot is a lightweight desktop sticky-notes application. Notes are stored loca
 
 This fork keeps the original interface and storage format while updating the parts that no longer worked reliably on current versions of Windows.
 
-## Changes in version 1.7
+## Changes in version 1.7.1
 
 - Uses a current Java runtime instead of the bundled 32-bit Java 7 release.
 - Keeps the single-instance lock open for the full lifetime of the application.
+- Handles early resize events while a note window is being initialized.
 - Reports startup and storage errors instead of closing silently.
 - Restores notes to a visible monitor when the screen layout changes.
 - Saves through a temporary file and keeps two backup generations.
@@ -31,7 +32,7 @@ Build and run the JAR:
 
 ```text
 mvn clean package
-java -jar target/NoteBot-1.7.0.jar
+java -jar target/NoteBot-1.7.1.jar
 ```
 
 To create the Windows portable package and installer, use a JDK that includes `jpackage` and run:
