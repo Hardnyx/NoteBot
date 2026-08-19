@@ -6,4 +6,4 @@ Build the current JAR from the repository root with Maven:
 
 It can then be run on a desktop system with:
 
-    java -jar target/NoteBot-1.7.1.jar
+    java -jar target/NoteBot-1.7.3.jar

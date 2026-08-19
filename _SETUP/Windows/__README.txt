@@ -1,11 +1,20 @@
 Windows build requirements:
 
-- JDK 21 or newer, with jpackage available
-- Maven 3.9 or newer
-- Inno Setup 6 for the installer
+- 64-bit JDK 21 or newer, with javac, jar and jpackage available
+- Inno Setup 6 or 7 (https://jrsoftware.org/isdl.php) for the installer
 
-Run build.ps1 from PowerShell. It compiles the project, creates a portable
-application with its own Java runtime, and then builds the installer when
-Inno Setup is available.
+Normal build, produces dist\NoteBot-Setup-<version>.exe:
 
-Output files are written to the dist folder in the repository root.
+powershell -NoProfile -ExecutionPolicy Bypass -File .\_SETUP\Windows\build.ps1
+
+Add -Portable to also produce dist\NoteBot-Portable-<version>.zip. The portable
+edition keeps its notes inside its own data folder instead of %LOCALAPPDATA%.
+
+The script compiles the source directly, builds the application image with
+jpackage, verifies that the packaged JAR matches the compiled one and then runs
+Inno Setup. Output files are written to the dist folder in the repository root.
+
+The installer runs without administrator rights and installs into
+%LOCALAPPDATA%\Programs\NoteBot. If a previous NoteBot installed for all users is
+detected, the installer offers to remove it first. Notes are never touched by an
+install or an uninstall.

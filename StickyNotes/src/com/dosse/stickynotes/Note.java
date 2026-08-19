@@ -41,6 +41,7 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.ResourceBundle;
 import javax.imageio.ImageIO;
+import java.awt.Insets;
 import javax.swing.GroupLayout;
 import javax.swing.JButton;
 import javax.swing.JDialog;
@@ -52,6 +53,8 @@ import javax.swing.JTextArea;
 import javax.swing.LayoutStyle;
 import javax.swing.WindowConstants;
 import javax.swing.border.LineBorder;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.event.UndoableEditEvent;
 import javax.swing.event.UndoableEditListener;
 import javax.swing.plaf.FontUIResource;
@@ -212,16 +215,20 @@ public class Note extends JDialog {
     private final JPanel wrapper1; //outer wrapper: it's the area that the user can use to resize the window
     private final JPanel wrapper2; //inner wrapper: it contains the buttons and the actual note; the empty space can be dragged to move the note
     private int mouseDragStartX, mouseDragStartY; //used for dragging
-    private final JButton deleteNote, newNote; //buttons to delete and create notes
+    private final JButton deleteNote, newNote, pinNote; //buttons to delete, create and pin notes
+    private final PinIcon pinIcon; //vector pushpin drawn with the colour of the current scheme
+    private boolean pinned; //true while the note stays above other windows
     private final JScrollPane jScrollPane1; //container for the text. provides the scrollbar
     private final JTextArea text; //the actual note
     private final UndoManager undo = new UndoManager(); //undo/redo manager (provided by swing)
     private final JPopupMenu copyPasteMenu, //menu shown when the textarea is right-clicked
             colorMenu; //menu shown when the top is right-clicked
     private final JMenuItem cut, copy, paste, delete, selectAll; //menu items inside copyPasteMenu
+    private final JMenuItem pinMenuItem; //pin entry inside colorMenu
     private Point preferredLocation = new Point(0, 0); //the preferred location is the last user-set location of the note. this is useful when the screen resolution is changed and the notes are all scrambled up
     private float textScale = 1; //text zoom
-    private static final float MIN_TEXT_SCALE = 0.2f, MAX_TEXT_SCALE = 4f; //min max text zoom
+    private static final float ZOOM_STEP = 1.1f; //multiplicative step, so a single notch feels the same at any zoom level
+    private static final int WINDOW_TITLE_PREVIEW_LENGTH = 40;
 
     /**
      * Creates new form Note.
@@ -252,7 +259,7 @@ public class Note extends JDialog {
                 text.requestFocusInWindow();
             }
         });
-        setTitle(getLocString("APPNAME")); //set window title
+        setTitle(buildWindowTitle("", getLocString("APPNAME"), getLocString("EMPTY_NOTE_TITLE")));
         setIconImage(loadImage("/com/dosse/stickynotes/icon.png")); //set window icon
         setUndecorated(true); //removes system window border
 
@@ -261,6 +268,8 @@ public class Note extends JDialog {
         wrapper2 = new JPanel();
         newNote = new JButton();
         deleteNote = new JButton();
+        pinIcon = new PinIcon((int) (13 * Main.SCALE), DEFAULT_SCHEME[3], false);
+        pinNote = new JButton(pinIcon);
         jScrollPane1 = new JScrollPane();
         //create the text area
         text = new JTextArea() {
@@ -278,6 +287,22 @@ public class Note extends JDialog {
             @Override
             public void undoableEditHappened(UndoableEditEvent e) {
                 undo.addEdit(e.getEdit());
+            }
+        });
+        doc.addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                updateWindowTitle();
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                updateWindowTitle();
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                updateWindowTitle();
             }
         });
 
@@ -320,6 +345,20 @@ public class Note extends JDialog {
             }
         });
 
+        //pin note button (keeps the note above other windows)
+        pinNote.setBorderPainted(false);
+        pinNote.setContentAreaFilled(false);
+        pinNote.setFocusPainted(false);
+        pinNote.setMargin(new Insets(0, 0, 0, 0));
+        pinNote.setToolTipText(getLocString("PIN"));
+        pinNote.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent evt) {
+                setPinned(!pinned);
+                Main.saveState();
+            }
+        });
+
         //delete note button
         deleteNote.setFont(new FontUIResource(Main.BUTTON_FONT));
         deleteNote.setText("X");
@@ -357,12 +396,15 @@ public class Note extends JDialog {
             public void mouseWheelMoved(MouseWheelEvent e) {
                 if (e.isControlDown() || e.isMetaDown()) {
                     if (e.getWheelRotation() < 0) {
-                        setTextScale(textScale + 0.1f);
+                        zoomIn();
                     } else if (e.getWheelRotation() > 0) {
-                        setTextScale(textScale - 0.1f);
+                        zoomOut();
                     }
                 } else { //scroll wheel without ctrl pressed simply scrolls
-                    jScrollPane1.getMouseWheelListeners()[0].mouseWheelMoved(e);
+                    MouseWheelListener[] scrollListeners = jScrollPane1.getMouseWheelListeners();
+                    if (scrollListeners.length > 0) {
+                        scrollListeners[0].mouseWheelMoved(e);
+                    }
                 }
             }
         });
@@ -372,12 +414,23 @@ public class Note extends JDialog {
             @Override
             public void keyPressed(KeyEvent e) {
                 if (e.isControlDown() || e.isMetaDown()) {
-                    if (e.getKeyCode() == KeyEvent.VK_ADD) {
-                        setTextScale(textScale + 0.1f);
-                    } else if (e.getKeyCode() == KeyEvent.VK_SUBTRACT) {
-                        setTextScale(textScale - 0.1f);
-                    } else if (e.getKeyCode() == KeyEvent.VK_NUMPAD0) {
-                        setTextScale(1);
+                    switch (e.getKeyCode()) {
+                        case KeyEvent.VK_ADD:
+                        case KeyEvent.VK_PLUS:
+                        case KeyEvent.VK_EQUALS:
+                            zoomIn();
+                            break;
+                        case KeyEvent.VK_SUBTRACT:
+                        case KeyEvent.VK_MINUS:
+                            zoomOut();
+                            break;
+                        case KeyEvent.VK_NUMPAD0:
+                        case KeyEvent.VK_0:
+                            setTextScale(1);
+                            Main.saveState();
+                            break;
+                        default:
+                            break;
                     }
                 }
             }
@@ -392,6 +445,9 @@ public class Note extends JDialog {
                         Main.newNote().setLocation((int) (preferredLocation.x + 40 * Main.SCALE), (int) (preferredLocation.y + 40 * Main.SCALE));
                     } else if (e.getKeyCode() == KeyEvent.VK_D) {
                         Main.delete(Note.this);
+                    } else if (e.getKeyCode() == KeyEvent.VK_T) {
+                        setPinned(!pinned);
+                        Main.saveState();
                     }
                 }
             }
@@ -533,12 +589,35 @@ public class Note extends JDialog {
             }
         });
         colorMenu.add(new JPopupMenu.Separator());
+        pinMenuItem = new JMenuItem(getLocString("PIN"));
+        pinMenuItem.setPreferredSize(new Dimension((int) (100 * Main.SCALE), (int) (36 * Main.SCALE)));
+        pinMenuItem.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                setPinned(!pinned);
+                Main.saveState();
+            }
+        });
+        colorMenu.add(pinMenuItem);
+        JMenuItem zoomItem = new JMenuItem(getLocString("ZOOM"));
+        zoomItem.setPreferredSize(new Dimension((int) (100 * Main.SCALE), (int) (36 * Main.SCALE)));
+        zoomItem.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                ZoomDialog.display(Note.this);
+            }
+        });
+        colorMenu.add(zoomItem);
+        colorMenu.add(new JPopupMenu.Separator());
         JMenuItem m = new JMenuItem(getLocString("ABOUT"));
         m.setPreferredSize(new Dimension((int) (100 * Main.SCALE), (int) (36 * Main.SCALE)));
         m.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                new AboutDialog(null, true).setVisible(true);
+                AboutDialog about = new AboutDialog(null, true);
+                // A pinned note would otherwise cover its own About window.
+                about.setAlwaysOnTop(isAlwaysOnTop());
+                about.setVisible(true);
             }
         });
         colorMenu.add(m);
@@ -546,8 +625,9 @@ public class Note extends JDialog {
         //add everything to the layout
         GroupLayout wrapper2Layout = new GroupLayout(wrapper2);
         wrapper2.setLayout(wrapper2Layout);
-        wrapper2Layout.setHorizontalGroup(wrapper2Layout.createParallelGroup(GroupLayout.Alignment.LEADING).addGroup(wrapper2Layout.createSequentialGroup().addComponent(newNote).addPreferredGap(LayoutStyle.ComponentPlacement.RELATED, 134, Short.MAX_VALUE).addComponent(deleteNote)).addComponent(jScrollPane1, GroupLayout.PREFERRED_SIZE, 0, Short.MAX_VALUE));
-        wrapper2Layout.setVerticalGroup(wrapper2Layout.createParallelGroup(GroupLayout.Alignment.LEADING).addGroup(GroupLayout.Alignment.TRAILING, wrapper2Layout.createSequentialGroup().addGap(0, 0, 0).addGroup(wrapper2Layout.createParallelGroup(GroupLayout.Alignment.LEADING).addComponent(deleteNote, GroupLayout.PREFERRED_SIZE, (int) (19 * Main.SCALE * 0.85f), GroupLayout.PREFERRED_SIZE).addComponent(newNote, GroupLayout.PREFERRED_SIZE, (int) (19 * Main.SCALE * 0.85f), GroupLayout.PREFERRED_SIZE)).addPreferredGap(LayoutStyle.ComponentPlacement.RELATED).addComponent(jScrollPane1, GroupLayout.DEFAULT_SIZE, 178, Short.MAX_VALUE)));
+        int barButtonHeight = (int) (19 * Main.SCALE * 0.85f);
+        wrapper2Layout.setHorizontalGroup(wrapper2Layout.createParallelGroup(GroupLayout.Alignment.LEADING).addGroup(wrapper2Layout.createSequentialGroup().addComponent(newNote).addPreferredGap(LayoutStyle.ComponentPlacement.RELATED, 100, Short.MAX_VALUE).addComponent(pinNote).addPreferredGap(LayoutStyle.ComponentPlacement.RELATED).addComponent(deleteNote)).addComponent(jScrollPane1, GroupLayout.PREFERRED_SIZE, 0, Short.MAX_VALUE));
+        wrapper2Layout.setVerticalGroup(wrapper2Layout.createParallelGroup(GroupLayout.Alignment.LEADING).addGroup(GroupLayout.Alignment.TRAILING, wrapper2Layout.createSequentialGroup().addGap(0, 0, 0).addGroup(wrapper2Layout.createParallelGroup(GroupLayout.Alignment.LEADING).addComponent(deleteNote, GroupLayout.PREFERRED_SIZE, barButtonHeight, GroupLayout.PREFERRED_SIZE).addComponent(pinNote, GroupLayout.PREFERRED_SIZE, barButtonHeight, GroupLayout.PREFERRED_SIZE).addComponent(newNote, GroupLayout.PREFERRED_SIZE, barButtonHeight, GroupLayout.PREFERRED_SIZE)).addPreferredGap(LayoutStyle.ComponentPlacement.RELATED).addComponent(jScrollPane1, GroupLayout.DEFAULT_SIZE, 178, Short.MAX_VALUE)));
         GroupLayout wrapper1Layout = new GroupLayout(wrapper1);
         wrapper1.setLayout(wrapper1Layout);
         wrapper1Layout.setHorizontalGroup(wrapper1Layout.createParallelGroup(GroupLayout.Alignment.LEADING).addGroup(GroupLayout.Alignment.TRAILING, wrapper1Layout.createSequentialGroup().addGap((int) (6 * Main.SCALE * 0.85f), (int) (6 * Main.SCALE * 0.85f), (int) (6 * Main.SCALE * 0.85f)).addComponent(wrapper2, GroupLayout.DEFAULT_SIZE, 217, Short.MAX_VALUE).addGap((int) (6 * Main.SCALE * 0.85f), (int) (6 * Main.SCALE * 0.85f), (int) (6 * Main.SCALE * 0.85f))));
@@ -594,13 +674,17 @@ public class Note extends JDialog {
      */
     @Override
     public void setBounds(int x, int y, int width, int height) {
+        Dimension desktop = ScreenBounds.desktopSize();
+        int safeWidth = Math.min(Math.max(width, Main.MIN_NOTE_WIDTH), Math.max(Main.MIN_NOTE_WIDTH, desktop.width));
+        int safeHeight = Math.min(Math.max(height, Main.MIN_NOTE_HEIGHT), Math.max(Main.MIN_NOTE_HEIGHT, desktop.height));
+
         Point visibleLocation = ScreenBounds.keepVisible(
                 new Point(x, y),
-                new Dimension(width, height),
+                new Dimension(safeWidth, safeHeight),
                 (int) (60 * Main.SCALE)
         );
         preferredLocation = visibleLocation;
-        super.setBounds(visibleLocation.x, visibleLocation.y, width, height);
+        super.setBounds(visibleLocation.x, visibleLocation.y, safeWidth, safeHeight);
     }
 
     /**
@@ -623,12 +707,50 @@ public class Note extends JDialog {
     }
 
     /**
+     * Builds the native window title from the first non-empty line of a note.
+     *
+     * @param noteText complete note text
+     * @param appName localized application name
+     * @param emptyTitle localized title used for an empty note
+     * @return title exposed to Windows and window-management tools
+     */
+    static String buildWindowTitle(String noteText, String appName, String emptyTitle) {
+        String preview = "";
+        if (noteText != null) {
+            for (String line : noteText.split("\\R", -1)) {
+                String candidate = line.strip().replaceAll("\\s+", " ");
+                if (!candidate.isEmpty()) {
+                    preview = candidate;
+                    break;
+                }
+            }
+        }
+
+        if (preview.isEmpty()) {
+            preview = emptyTitle;
+        }
+
+        int codePointCount = preview.codePointCount(0, preview.length());
+        if (codePointCount > WINDOW_TITLE_PREVIEW_LENGTH) {
+            int endIndex = preview.offsetByCodePoints(0, WINDOW_TITLE_PREVIEW_LENGTH - 3);
+            preview = preview.substring(0, endIndex) + "...";
+        }
+
+        return preview + " - " + appName;
+    }
+
+    private void updateWindowTitle() {
+        setTitle(buildWindowTitle(text.getText(), getLocString("APPNAME"), getLocString("EMPTY_NOTE_TITLE")));
+    }
+
+    /**
      * set text currently inside the note
      *
      * @param s
      */
     public void setText(String s) {
         text.setText(s);
+        updateWindowTitle();
         undo.discardAllEdits();
     }
 
@@ -665,17 +787,61 @@ public class Note extends JDialog {
     }
 
     /**
-     * set new text scale
+     * Sets a new text scale. Any value is accepted and is brought inside the range
+     * NoteBot considers usable: never small enough for the text to disappear and never
+     * large enough to make the note useless.
      *
-     * @param scale scale as float 0.2-4.0
+     * @param scale requested scale, where 1 is the default size
      */
     public void setTextScale(float scale) {
         if (scale >= 0.99 && scale <= 1.01) {
             textScale = 1;
             text.setFont(Main.BASE_FONT);
-        } else {
-            textScale = scale < MIN_TEXT_SCALE ? MIN_TEXT_SCALE : scale > MAX_TEXT_SCALE ? MAX_TEXT_SCALE : scale;
-            text.setFont(Main.BASE_FONT.deriveFont(Main.TEXT_SIZE * textScale));
+            return;
+        }
+
+        textScale = Math.max(Main.MIN_TEXT_SCALE, Math.min(scale, Main.MAX_TEXT_SCALE));
+        text.setFont(Main.BASE_FONT.deriveFont(Main.TEXT_SIZE * textScale));
+    }
+
+    private void zoomIn() {
+        setTextScale(textScale * ZOOM_STEP);
+        Main.saveState();
+    }
+
+    private void zoomOut() {
+        setTextScale(textScale / ZOOM_STEP);
+        Main.saveState();
+    }
+
+    /**
+     * Reports whether the note is kept above other windows.
+     *
+     * @return true when the note is pinned
+     */
+    public boolean isPinned() {
+        return pinned;
+    }
+
+    /**
+     * Keeps the note above other windows, or releases it.
+     *
+     * @param value true to pin the note
+     */
+    public void setPinned(boolean value) {
+        pinned = value;
+        try {
+            setAlwaysOnTop(value);
+        } catch (SecurityException | UnsupportedOperationException exception) {
+            pinned = false;
+        }
+
+        pinIcon.setPinned(pinned);
+        String tooltip = getLocString(pinned ? "UNPIN" : "PIN");
+        pinNote.setToolTipText(tooltip);
+        pinNote.repaint();
+        if (pinMenuItem != null) {
+            pinMenuItem.setText(tooltip);
         }
     }
 
@@ -708,6 +874,8 @@ public class Note extends JDialog {
         wrapper2.setBackground(c[2]);
         newNote.setForeground(c[3]);
         deleteNote.setForeground(c[3]);
+        pinIcon.setColor(c[3]);
+        pinNote.repaint();
         text.setBackground(c[4]);
         text.setForeground(c[5]);
         text.setCaretColor(c[5]);

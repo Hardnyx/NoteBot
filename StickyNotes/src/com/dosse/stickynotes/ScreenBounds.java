@@ -44,6 +44,49 @@ final class ScreenBounds {
         return new Point(primary.x + 40, primary.y + 40);
     }
 
+    /**
+     * Returns the size of the rectangle that encloses every monitor. It is used as the
+     * upper limit for a note, so a window can never be asked to grow past the desktop.
+     *
+     * @return width and height of the whole desktop
+     */
+    static Dimension desktopSize() {
+        List<Rectangle> screens = usableScreens();
+        if (screens.isEmpty()) {
+            return new Dimension(1024, 768);
+        }
+
+        Rectangle union = new Rectangle(screens.get(0));
+        for (Rectangle screen : screens) {
+            union = union.union(screen);
+        }
+        return new Dimension(Math.max(1, union.width), Math.max(1, union.height));
+    }
+
+    /**
+     * Returns the size of the smallest monitor, which is the one that decides how large
+     * the text may grow before it stops being usable.
+     *
+     * @return width and height of the smallest monitor
+     */
+    static Dimension smallestScreenSize() {
+        List<Rectangle> screens = usableScreens();
+        if (screens.isEmpty()) {
+            return new Dimension(1024, 768);
+        }
+
+        Rectangle smallest = screens.get(0);
+        long smallestArea = (long) smallest.width * smallest.height;
+        for (Rectangle screen : screens) {
+            long area = (long) screen.width * screen.height;
+            if (area < smallestArea) {
+                smallest = screen;
+                smallestArea = area;
+            }
+        }
+        return new Dimension(Math.max(1, smallest.width), Math.max(1, smallest.height));
+    }
+
     static Point keepVisible(Point requested, Dimension windowSize, int minimumVisible) {
         return keepVisible(requested, windowSize, minimumVisible, usableScreens());
     }

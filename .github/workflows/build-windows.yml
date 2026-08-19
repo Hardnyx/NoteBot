@@ -19,31 +19,35 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"
-          cache: maven
-
-      - name: Compile
-        run: mvn --batch-mode clean package
 
       - name: Install Inno Setup
         shell: powershell
         run: |
-          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+          $iscc = @(
+            "${env:ProgramFiles(x86)}\Inno Setup 7\ISCC.exe"
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+          if (-not $iscc -and -not (Get-Command ISCC.exe -ErrorAction SilentlyContinue)) {
               choco install innosetup --yes --no-progress
           }
 
       - name: Package Windows application
         shell: powershell
-        run: .\_SETUP\Windows\build.ps1 -SkipCompile
+        run: .\_SETUP\Windows\build.ps1 -Portable
+
+      - name: Show checksums
+        shell: powershell
+        run: Get-Content dist\SHA256SUMS.txt
 
       - name: Upload packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: NoteBot-Windows
           path: dist/*

@@ -31,6 +31,7 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.channels.OverlappingFileLockException;
 import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -62,12 +63,21 @@ import javax.swing.plaf.metal.MetalTheme;
  */
 public final class Main {
 
-    public static final String VERSION = "1.7.1";
+    public static final String VERSION = "1.8.0";
 
     private static final Logger LOGGER = Logger.getLogger(Main.class.getName());
     private static final ResourceBundle MESSAGES = ResourceBundle.getBundle("com/dosse/stickynotes/locale/locale");
     private static final List<Note> NOTES = new ArrayList<>();
     private static final int MAX_NOTE_COUNT = 10000;
+
+    /**
+     * Windows refuses to move or replace a file while another process has it open, and a
+     * synchronisation client, an antivirus scanner or the search indexer can hold
+     * sticky.dat at any moment. Such a lock is almost always released within a few
+     * hundred milliseconds, so the save is retried briefly before giving up.
+     */
+    private static final int FILE_RETRY_ATTEMPTS = 4;
+    private static final long FILE_RETRY_DELAY_MILLIS = 40;
 
     private static Path appDirectory;
     private static Path storagePath;
@@ -86,7 +96,7 @@ public final class Main {
     /**
      * Saves all open notes using the storage format from the original releases.
      */
-    public static void saveState() {
+    public static synchronized void saveState() {
         synchronized (NOTES) {
             try {
                 writeState();
@@ -116,16 +126,55 @@ public final class Main {
             for (Note note : NOTES) {
                 output.writeObject(note.getTextScale());
             }
+            // Appended after the 1.7 blocks so older releases simply stop reading here.
+            for (Note note : NOTES) {
+                output.writeObject(note.isPinned());
+            }
         }
 
-        moveIfPresent(backupPath, secondBackupPath);
-        moveIfPresent(storagePath, backupPath);
-        moveReplacing(temporaryPath, storagePath);
+        rotateBackups();
+
+        // Replacing the notes file is the only step that may not fail silently.
+        moveWithRetry(temporaryPath, storagePath);
     }
 
-    private static void moveIfPresent(Path source, Path destination) throws IOException {
-        if (Files.exists(source)) {
-            moveReplacing(source, destination);
+    /**
+     * Keeps two generations of backups. The previous file is copied rather than moved, so
+     * sticky.dat never stops existing during a save, and a locked backup is reported to
+     * the log without stopping the save itself.
+     */
+    private static void rotateBackups() {
+        try {
+            copyIfPresent(backupPath, secondBackupPath);
+            copyIfPresent(storagePath, backupPath);
+        } catch (IOException exception) {
+            LOGGER.log(Level.WARNING, "The note backups could not be rotated", exception);
+        }
+    }
+
+    private static void moveWithRetry(Path source, Path destination) throws IOException {
+        FileSystemException lastFailure = null;
+
+        for (int attempt = 0; attempt < FILE_RETRY_ATTEMPTS; attempt++) {
+            try {
+                moveReplacing(source, destination);
+                return;
+            } catch (FileSystemException exception) {
+                lastFailure = exception;
+                if (attempt < FILE_RETRY_ATTEMPTS - 1) {
+                    sleepQuietly(FILE_RETRY_DELAY_MILLIS * (attempt + 1));
+                }
+            }
+        }
+
+        throw lastFailure;
+    }
+
+    private static void sleepQuietly(long milliseconds) {
+        try {
+            Thread.sleep(milliseconds);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
         }
     }
 
@@ -173,8 +222,8 @@ public final class Main {
 
                 Dimension storedSize = (Dimension) sizeValue;
                 Dimension scaledSize = new Dimension(
-                        Math.max(1, Math.round(storedSize.width * scaleMultiplier)),
-                        Math.max(1, Math.round(storedSize.height * scaleMultiplier))
+                        Math.max(MIN_NOTE_WIDTH, Math.round(storedSize.width * scaleMultiplier)),
+                        Math.max(MIN_NOTE_HEIGHT, Math.round(storedSize.height * scaleMultiplier))
                 );
 
                 Note note = new Note();
@@ -185,6 +234,7 @@ public final class Main {
                 loadedNotes.add(note);
             }
 
+            boolean textScaleComplete = true;
             for (Note note : loadedNotes) {
                 try {
                     Object textScaleValue = input.readObject();
@@ -192,7 +242,21 @@ public final class Main {
                         note.setTextScale((Float) textScaleValue);
                     }
                 } catch (EOFException exception) {
+                    textScaleComplete = false;
                     break;
+                }
+            }
+
+            if (textScaleComplete) {
+                for (Note note : loadedNotes) {
+                    try {
+                        Object pinnedValue = input.readObject();
+                        if (pinnedValue instanceof Boolean) {
+                            note.setPinned((Boolean) pinnedValue);
+                        }
+                    } catch (EOFException exception) {
+                        break;
+                    }
                 }
             }
         } catch (IOException | ClassNotFoundException | RuntimeException exception) {
@@ -208,6 +272,9 @@ public final class Main {
             }
             for (Note note : NOTES) {
                 note.setVisible(true);
+            }
+            if (!noAutoCreate && !NOTES.isEmpty()) {
+                requestAttention(NOTES.get(NOTES.size() - 1));
             }
         }
         return true;
@@ -236,6 +303,7 @@ public final class Main {
             Note note = createNote();
             NOTES.add(note);
             note.setVisible(true);
+            requestAttention(note);
             saveState();
             return note;
         }
@@ -328,6 +396,44 @@ public final class Main {
     public static final float TEXT_SIZE_SMALL = 11f * SCALE;
     public static final float BUTTON_TEXT_SIZE = 11f * SCALE;
 
+    /**
+     * Smallest size a note window may take. It is also applied when reading stored
+     * notes, so a file written by an older release that collapsed a window is repaired
+     * instead of reopening as an unusable sliver.
+     */
+    public static final int MIN_NOTE_WIDTH = Math.max(120, (int) (160 * SCALE));
+    public static final int MIN_NOTE_HEIGHT = Math.max(70, (int) (90 * SCALE));
+
+    public static final float MIN_TEXT_SCALE = calculateMinTextScale();
+    public static final float MAX_TEXT_SCALE = calculateMaxTextScale();
+
+    /**
+     * Lower zoom limit. The text is never allowed below roughly five points, which is
+     * the point at which a note stops showing anything readable.
+     */
+    private static float calculateMinTextScale() {
+        return Math.min(0.5f, Math.max(0.1f, 5f / TEXT_SIZE));
+    }
+
+    /**
+     * Upper zoom limit. A line of text may not take more than about a third of the
+     * shortest side of the smallest monitor. That is deliberately generous, so the zoom
+     * stays useful for reading at a distance or with reduced vision, while still keeping
+     * a note from being enlarged past anything the screen can show.
+     */
+    private static float calculateMaxTextScale() {
+        int shortestSide = 768;
+        try {
+            Dimension screen = ScreenBounds.smallestScreenSize();
+            shortestSide = Math.max(320, Math.min(screen.width, screen.height));
+        } catch (RuntimeException exception) {
+            LOGGER.log(Level.FINE, "Screen size is unavailable; using the default zoom limit", exception);
+        }
+
+        float limit = (shortestSide * 0.35f) / TEXT_SIZE;
+        return Math.max(calculateMinTextScale() * 4f, Math.min(30f, limit));
+    }
+
     public static final Font BASE_FONT = loadFont("/com/dosse/stickynotes/fonts/OpenSans-Regular-Twemoji.ttf", Font.PLAIN).deriveFont(TEXT_SIZE);
     public static final Font SMALL_FONT = BASE_FONT.deriveFont(TEXT_SIZE_SMALL);
     public static final Font BUTTON_FONT = loadFont("/com/dosse/stickynotes/fonts/OpenSans-Bold.ttf", Font.BOLD).deriveFont(BUTTON_TEXT_SIZE);
@@ -352,7 +458,7 @@ public final class Main {
             }
 
             Runtime.getRuntime().addShutdownHook(new Thread(Main::releaseInstanceLock, "notebot-shutdown"));
-            EventQueue.invokeLater(Main::startApplication);
+            EventQueue.invokeLater(Main::startApplicationSafely);
         } catch (IOException exception) {
             LOGGER.log(Level.SEVERE, "NoteBot could not start", exception);
             showFatalError(exception);
@@ -394,6 +500,20 @@ public final class Main {
         });
     }
 
+    /**
+     * The event dispatch thread prints its own exceptions to a stream nobody reads when
+     * the application runs without a console, which used to make a failed start look
+     * like nothing had happened at all.
+     */
+    private static void startApplicationSafely() {
+        try {
+            startApplication();
+        } catch (RuntimeException | Error error) {
+            LOGGER.log(Level.SEVERE, "NoteBot could not finish starting", error);
+            showFatalError(error);
+        }
+    }
+
     private static void startApplication() {
         applyLookAndFeel();
 
@@ -415,6 +535,7 @@ public final class Main {
                 Note note = createNote();
                 NOTES.add(note);
                 note.setVisible(true);
+                requestAttention(note);
             }
         }
 
@@ -425,6 +546,11 @@ public final class Main {
 
         saveState();
         startTimers();
+    }
+
+    private static void requestAttention(Note note) {
+        note.toFront();
+        note.requestFocus();
     }
 
     private static Path preserveUnreadableStorage() {

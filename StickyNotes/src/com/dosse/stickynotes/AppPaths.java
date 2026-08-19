@@ -15,14 +15,19 @@ import java.util.Locale;
 
 final class AppPaths {
 
+    private static final String DATA_DIRECTORY_PROPERTY = "notebot.dataDir";
+
     private AppPaths() {
     }
 
     static Path getDataDirectory() throws IOException {
+        String configuredDirectory = System.getProperty(DATA_DIRECTORY_PROPERTY);
         String operatingSystem = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
         Path directory;
 
-        if (operatingSystem.startsWith("windows")) {
+        if (configuredDirectory != null && !configuredDirectory.isBlank()) {
+            directory = Path.of(configuredDirectory).toAbsolutePath().normalize();
+        } else if (operatingSystem.startsWith("windows")) {
             String localAppData = System.getenv("LOCALAPPDATA");
             if (localAppData != null && !localAppData.isBlank()) {
                 directory = Path.of(localAppData, "NoteBot");

@@ -1,5 +1,7 @@
 /target/
 /dist/
+/.local-build/
+/.local-run/
 /.idea/
 /.vscode/
 *.log

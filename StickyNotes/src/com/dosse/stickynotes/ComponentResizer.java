@@ -365,50 +365,52 @@ public class ComponentResizer extends MouseAdapter
 		int width = bounds.width;
 		int height = bounds.height;
 
+		Dimension boundingSize = getBoundingSize( source );
+		int maximumWidth = Math.max(minimumSize.width, Math.min(maximumSize.width, boundingSize.width));
+		int maximumHeight = Math.max(minimumSize.height, Math.min(maximumSize.height, boundingSize.height));
+
 		//  Resizing the West or North border affects the size and location
 
 		if (WEST == (direction & WEST))
 		{
-			int drag = getDragDistance(pressed.x, current.x, snapSize.width);
-			int maximum = Math.min(width + x, maximumSize.width);
-			drag = getDragBounded(drag, snapSize.width, width, minimumSize.width, maximum);
-
-			x -= drag;
-			width += drag;
+			width = clamp(width + getDragDistance(pressed.x, current.x, snapSize.width), minimumSize.width, maximumWidth);
+			x = bounds.x + bounds.width - width;
 		}
 
 		if (NORTH == (direction & NORTH))
 		{
-			int drag = getDragDistance(pressed.y, current.y, snapSize.height);
-			int maximum = Math.min(height + y, maximumSize.height);
-			drag = getDragBounded(drag, snapSize.height, height, minimumSize.height, maximum);
-
-			y -= drag;
-			height += drag;
+			height = clamp(height + getDragDistance(pressed.y, current.y, snapSize.height), minimumSize.height, maximumHeight);
+			y = bounds.y + bounds.height - height;
 		}
 
 		//  Resizing the East or South border only affects the size
 
 		if (EAST == (direction & EAST))
 		{
-			int drag = getDragDistance(current.x, pressed.x, snapSize.width);
-			Dimension boundingSize = getBoundingSize( source );
-			int maximum = Math.min(boundingSize.width - x, maximumSize.width);
-			drag = getDragBounded(drag, snapSize.width, width, minimumSize.width, maximum);
-			width += drag;
+			width = clamp(width + getDragDistance(current.x, pressed.x, snapSize.width), minimumSize.width, maximumWidth);
 		}
 
 		if (SOUTH == (direction & SOUTH))
 		{
-			int drag = getDragDistance(current.y, pressed.y, snapSize.height);
-			Dimension boundingSize = getBoundingSize( source );
-			int maximum = Math.min(boundingSize.height - y, maximumSize.height);
-			drag = getDragBounded(drag, snapSize.height, height, minimumSize.height, maximum);
-			height += drag;
+			height = clamp(height + getDragDistance(current.y, pressed.y, snapSize.height), minimumSize.height, maximumHeight);
 		}
 
 		source.setBounds(x, y, width, height);
 		source.validate();
+	}
+
+	/*
+	 *  Keep a value inside an inclusive range. The minimum always wins so that a
+	 *  component can never be reduced below its usable size, no matter where on
+	 *  the desktop it is being dragged.
+	 */
+	private static int clamp(int value, int minimum, int maximum)
+	{
+		if (maximum < minimum)
+		{
+			return minimum;
+		}
+		return Math.max(minimum, Math.min(value, maximum));
 	}
 
 	/*
@@ -425,30 +427,16 @@ public class ComponentResizer extends MouseAdapter
 	}
 
 	/*
-	 *  Adjust the drag value to be within the minimum and maximum range.
-	 */
-	private int getDragBounded(int drag, int snapSize, int dimension, int minimum, int maximum)
-	{
-		while (dimension + drag < minimum)
-			drag += snapSize;
-
-		while (dimension + drag > maximum)
-			drag -= snapSize;
-
-
-		return drag;
-	}
-
-	/*
 	 *  Keep the size of the component within the bounds of its parent.
 	 */
 	private Dimension getBoundingSize(Component source)
 	{
 		if (source instanceof Window)
 		{
-			GraphicsEnvironment env = GraphicsEnvironment.getLocalGraphicsEnvironment();
-			Rectangle bounds = env.getMaximumWindowBounds();
-			return new Dimension(bounds.width, bounds.height);
+			//  getMaximumWindowBounds() only describes the primary monitor work area and
+			//  its origin is discarded here, so a window placed on a secondary monitor or
+			//  near the taskbar used to produce a negative limit and collapse to nothing.
+			return ScreenBounds.desktopSize();
 		}
 		else
 		{
